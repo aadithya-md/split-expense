@@ -1,0 +1,291 @@
+{
+	"info": {
+		"_postman_id": "fe11266f-6dff-4506-8f2e-440d0bd0885d",
+		"name": "expense-split",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "50618842",
+		"_collection_link": "https://aadithyamd-5677063.postman.co/workspace/Aadithya-MD's-Workspace~f111e2b1-0b44-49fd-8a71-c922ab3394e0/collection/50618842-fe11266f-6dff-4506-8f2e-440d0bd0885d?action=share&source=collection_link&creator=50618842"
+	},
+	"item": [
+		{
+			"name": "Create user",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "// {\"name\":\"Alice\",\"email\":\"alice@example.com\"}\n //{\"name\":\"Bob\",\"email\":\"bob@example.com\"}\n {\"name\":\"Charlie\",\"email\":\"charlie@example.com\"}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://localhost:8080/users",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8080",
+					"path": [
+						"users"
+					]
+				},
+				"description": "Generated from cURL: curl -X POST -H \"Content-Type: application/json\" -d '{\"name\":\"Test User\",\"email\":\"test@example.com\"}' http://localhost:8080/users"
+			},
+			"response": []
+		},
+		{
+			"name": "Get user by ID",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"url": {
+					"raw": "http://localhost:8080/users/:id",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8080",
+					"path": [
+						"users",
+						":id"
+					],
+					"variable": [
+						{
+							"key": "id",
+							"value": "1"
+						}
+					]
+				},
+				"description": "Generated from cURL: curl -X POST -H \"Content-Type: application/json\" -d '{\"name\":\"Test User\",\"email\":\"test@example.com\"}' http://localhost:8080/users"
+			},
+			"response": []
+		},
+		{
+			"name": "Get user by ID Copy",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"url": {
+					"raw": "http://localhost:8080/users/by-email/:email",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8080",
+					"path": [
+						"users",
+						"by-email",
+						":email"
+					],
+					"variable": [
+						{
+							"key": "email",
+							"value": "aadithya@xyz.com"
+						}
+					]
+				},
+				"description": "Generated from cURL: curl -X POST -H \"Content-Type: application/json\" -d '{\"name\":\"Test User\",\"email\":\"test@example.com\"}' http://localhost:8080/users"
+			},
+			"response": []
+		},
+		{
+			"name": "Equal Split",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"description\": \"Team Lunch (Equal)\",\n  \"total_amount\": 150.00,\n  \"created_by_email\": \"bob@example.com\",\n  \"split_method\": \"equal\",\n  \"equal_splits\": [\n    {\"user_email\": \"alice@example.com\", \"amount_paid\": 100.00},\n    {\"user_email\": \"bob@example.com\", \"amount_paid\": 25.00},\n    {\"user_email\": \"charlie@example.com\", \"amount_paid\": 25.00}\n  ]\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://localhost:8080/expenses",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8080",
+					"path": [
+						"expenses"
+					]
+				},
+				"description": "Generated from cURL: curl -X POST -H \"Content-Type: application/json\" -d '{\n  \"description\": \"Team Lunch (Equal)\",\n  \"total_amount\": 75.00,\n  \"created_by_email\": \"alice@example.com\",\n  \"split_method\": \"equal\",\n  \"equal_splits\": [\n    {\"user_email\": \"alice@example.com\", \"amount_paid\": 25.00},\n    {\"user_email\": \"bob@example.com\", \"amount_paid\": 25.00},\n    {\"user_email\": \"charlie@example.com\", \"amount_paid\": 25.00}\n  ]\n}' http://localhost:8080/expenses"
+			},
+			"response": []
+		},
+		{
+			"name": "Percentage split",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"description\": \"Trip Groceries\",\n    \"tag\": \"Travel\",\n    \"total_amount\": 100.00,\n    \"created_by_email\": \"alice@example.com\",\n    \"split_method\": \"percentage\",\n    \"percentage_splits\": [\n        { \"user_email\": \"alice@example.com\", \"percentage\": 50, \"amount_paid\": 100.00 },\n        { \"user_email\": \"bob@example.com\", \"percentage\": 30, \"amount_paid\": 0.00 },\n        { \"user_email\": \"charlie@example.com\", \"percentage\": 20, \"amount_paid\": 0.00 }\n    ]\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://localhost:8080/expenses",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8080",
+					"path": [
+						"expenses"
+					]
+				},
+				"description": "Generated from cURL: curl -X POST http://localhost:8080/expenses \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"description\": \"Trip Groceries\",\n    \"tag\": \"Travel\",\n    \"total_amount\": 100.00,\n    \"created_by_email\": \"alice@example.com\",\n    \"split_method\": \"percentage\",\n    \"percentage_splits\": [\n        { \"user_email\": \"alice@example.com\", \"percentage\": 50, \"amount_paid\": 100.00 },\n        { \"user_email\": \"bob@example.com\", \"percentage\": 30, \"amount_paid\": 0.00 },\n        { \"user_email\": \"charlie@example.com\", \"percentage\": 20, \"amount_paid\": 0.00 }\n    ]\n}'"
+			},
+			"response": []
+		},
+		{
+			"name": "Manual Split",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"description\": \"Office Supplies\",\n    \"tag\": \"Office\",\n    \"total_amount\": 50.00,\n    \"created_by_email\": \"bob@example.com\",\n    \"split_method\": \"manual\",\n    \"manual_splits\": [\n        { \"user_email\": \"alice@example.com\", \"amount_owed\": 10.00, \"amount_paid\": 0.00 },\n        { \"user_email\": \"bob@example.com\", \"amount_owed\": 20.00, \"amount_paid\": 50.00 },\n        { \"user_email\": \"charlie@example.com\", \"amount_owed\": 20.00, \"amount_paid\": 0.00 }\n    ]\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://localhost:8080/expenses",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8080",
+					"path": [
+						"expenses"
+					]
+				},
+				"description": "Generated from cURL: curl -X POST http://localhost:8080/expenses \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"description\": \"Office Supplies\",\n    \"tag\": \"Office\",\n    \"total_amount\": 50.00,\n    \"created_by_email\": \"bob@example.com\",\n    \"split_method\": \"manual\",\n    \"manual_splits\": [\n        { \"user_email\": \"alice@example.com\", \"amount_owed\": 10.00, \"amount_paid\": 0.00 },\n        { \"user_email\": \"bob@example.com\", \"amount_owed\": 20.00, \"amount_paid\": 50.00 },\n        { \"user_email\": \"charlie@example.com\", \"amount_owed\": 20.00, \"amount_paid\": 0.00 }\n    ]\n}'"
+			},
+			"response": []
+		},
+		{
+			"name": "Get expense",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://localhost:8080/expenses/by-user/:email",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8080",
+					"path": [
+						"expenses",
+						"by-user",
+						":email"
+					],
+					"variable": [
+						{
+							"key": "email",
+							"value": "alice@example.com"
+						}
+					]
+				},
+				"description": "Generated from cURL: curl -X GET http://localhost:8080/expenses/by-user/alice@example.com"
+			},
+			"response": []
+		},
+		{
+			"name": "Get balances",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://localhost:8080/balances/by-user/alice@example.com",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8080",
+					"path": [
+						"balances",
+						"by-user",
+						"alice@example.com"
+					]
+				},
+				"description": "Generated from cURL: curl -X GET http://localhost:8080/balances/by-user/alice@example.com"
+			},
+			"response": []
+		},
+		{
+			"name": "Overall balance",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://localhost:8080/balances/overall/by-user/:emailID",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8080",
+					"path": [
+						"balances",
+						"overall",
+						"by-user",
+						":emailID"
+					],
+					"variable": [
+						{
+							"key": "emailID",
+							"value": "alice@example.com"
+						}
+					]
+				},
+				"description": "Generated from cURL: curl -X GET http://localhost:8080/balances/overall/by-user"
+			},
+			"response": []
+		}
+	]
+}
