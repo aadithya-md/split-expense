@@ -20,3 +20,17 @@ Postman collection is added in Resources folder.
 
 
 ## Steps to run
+
+1.  **Install dependencies**: (go 1.25)
+    ```bash
+    go mod tidy
+    ```
+2.  **Run database in docker**:
+    ```bash
+    docker-compose up -d mysql --remove-orphans
+    ```
+    *Note: Replace the database connection string with your actual database URL.*
+3.  **Run the application**:
+    ```bash
+    go run cmd/server/main.go
+    ```
