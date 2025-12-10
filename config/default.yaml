@@ -1,0 +1,8 @@
+SERVICE_NAME: "split-expense"
+
+HTTP_SERVER:
+  ADDRESS: ""
+  PORT: "8080" 
+  READ_TIMEOUT: 5s
+  WRITE_TIMEOUT: 5s
+  IDLE_TIMEOUT: 10s
