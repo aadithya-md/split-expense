@@ -29,8 +29,17 @@ type BalanceUpdate struct {
 	Amount  float64
 }
 
+type UserExpenseView struct {
+	Date        time.Time `json:"date"`
+	Tag         string    `json:"tag"`
+	Description string    `json:"description"`
+	TotalAmount float64   `json:"total_amount"`
+	Share       float64   `json:"share"`
+}
+
 type ExpenseRepository interface {
 	CreateExpense(expense *Expense, splits []ExpenseSplit, balanceUpdates []BalanceUpdate) (*Expense, error)
+	GetExpensesByUserID(userID int) ([]UserExpenseView, error)
 }
 
 type expenseRepository struct {
@@ -86,4 +95,60 @@ func (r *expenseRepository) CreateExpense(expense *Expense, splits []ExpenseSpli
 	}
 
 	return expense, nil
+}
+
+func (r *expenseRepository) GetExpensesByUserID(userID int) ([]UserExpenseView, error) {
+	query := `
+		SELECT
+			e.created_at,
+			e.tag,
+			e.description,
+			e.total_amount,
+			es.amount_paid,
+			es.amount_owed
+		FROM
+			expenses e
+		JOIN
+			expense_splits es ON e.id = es.expense_id
+		WHERE
+			es.user_id = ?
+		ORDER BY
+			e.created_at DESC
+	`
+
+	rows, err := r.db.Query(query, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query expenses for user %d: %w", userID, err)
+	}
+	defer rows.Close()
+
+	var expenses []UserExpenseView
+	for rows.Next() {
+		var (
+			Date        time.Time
+			Tag         string
+			Description string
+			TotalAmount float64
+			AmountPaid  float64
+			AmountOwed  float64
+		)
+
+		if err := rows.Scan(&Date, &Tag, &Description, &TotalAmount, &AmountPaid, &AmountOwed); err != nil {
+			return nil, fmt.Errorf("failed to scan expense row for user %d: %w", userID, err)
+		}
+
+		expenses = append(expenses, UserExpenseView{
+			Date:        Date,
+			Tag:         Tag,
+			Description: Description,
+			TotalAmount: TotalAmount,
+			Share:       AmountPaid - AmountOwed,
+		})
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating over expense rows for user %d: %w", userID, err)
+	}
+
+	return expenses, nil
 }

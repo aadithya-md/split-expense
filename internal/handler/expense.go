@@ -7,6 +7,7 @@ import (
 
 	"github.com/aadithya-md/split-expense/internal/service"
 	"github.com/aadithya-md/split-expense/internal/util"
+	"github.com/gorilla/mux"
 )
 
 type ExpenseHandler struct {
@@ -39,6 +40,25 @@ func (h *ExpenseHandler) CreateExpenseHandler(w http.ResponseWriter, r *http.Req
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(expense)
+}
+
+func (h *ExpenseHandler) GetExpensesForUserHandler(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	userEmail := vars["email"]
+	if userEmail == "" {
+		http.Error(w, "User email is required", http.StatusBadRequest)
+		return
+	}
+
+	expenses, err := h.expenseService.GetExpensesForUser(userEmail)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(expenses)
 }
 
 func (h *ExpenseHandler) validateCreateExpenseRequest(req service.CreateExpenseRequest) error {

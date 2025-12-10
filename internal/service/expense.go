@@ -50,6 +50,7 @@ type CreateExpenseRequest struct {
 
 type ExpenseService interface {
 	CreateExpense(req CreateExpenseRequest) (*repository.Expense, error)
+	GetExpensesForUser(userEmail string) ([]repository.UserExpenseView, error)
 }
 
 type expenseService struct {
@@ -207,4 +208,19 @@ func (s *expenseService) CreateExpense(req CreateExpenseRequest) (*repository.Ex
 	}
 
 	return createdExpense, nil
+}
+
+func (s *expenseService) GetExpensesForUser(userEmail string) ([]repository.UserExpenseView, error) {
+	users, err := s.userService.GetUsersByEmails([]string{userEmail})
+	if err != nil || len(users) == 0 {
+		return nil, fmt.Errorf("user with email %s not found", userEmail)
+	}
+
+	userID := users[0].ID
+	expenses, err := s.expenseRepo.GetExpensesByUserID(userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get expenses for user %s: %w", userEmail, err)
+	}
+
+	return expenses, nil
 }
