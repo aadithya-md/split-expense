@@ -2,6 +2,7 @@ package service
 
 import (
 	"database/sql"
+	"errors"
 	"testing"
 	"time"
 
@@ -68,6 +69,11 @@ func (m *MockBalanceRepository) UpdateBalance(tx *sql.Tx, user1ID, user2ID int, 
 func (m *MockBalanceRepository) GetBalancesByUserID(userID int) ([]repository.Balance, error) {
 	args := m.Called(userID)
 	return args.Get(0).([]repository.Balance), args.Error(1)
+}
+
+func (m *MockBalanceRepository) GetOverallBalanceByUserID(userID int) (float64, error) {
+	args := m.Called(userID)
+	return args.Get(0).(float64), args.Error(1)
 }
 
 func TestExpenseService_CreateExpense(t *testing.T) {
@@ -351,6 +357,58 @@ func TestExpenseService_GetOutstandingBalancesForUser(t *testing.T) {
 		assert.Nil(t, err)
 		assert.NotNil(t, balances)
 		assert.Equal(t, expectedUserBalances, balances)
+		userService.AssertExpectations(t)
+		balanceRepo.AssertExpectations(t)
+	}
+}
+
+func TestExpenseService_GetOverallOutstandingBalance(t *testing.T) {
+	expenseRepo := new(MockExpenseRepository)
+	userService := new(MockUserService)
+	balanceRepo := new(MockBalanceRepository)
+	expenseService := NewExpenseService(expenseRepo, userService, balanceRepo)
+
+	alice := &repository.User{ID: 1, Name: "Alice", Email: "alice@example.com"}
+
+	// Test case 1: Successful retrieval of overall outstanding balance
+	{
+		userEmail := "alice@example.com"
+		expectedOverallBalance := 25.50
+
+		userService.On("GetUsersByEmails", []string{userEmail}).Return([]*repository.User{alice}, nil).Once()
+		balanceRepo.On("GetOverallBalanceByUserID", alice.ID).Return(expectedOverallBalance, nil).Once()
+
+		overallBalance, err := expenseService.GetOverallOutstandingBalance(userEmail)
+		assert.Nil(t, err)
+		assert.Equal(t, expectedOverallBalance, overallBalance)
+		userService.AssertExpectations(t)
+		balanceRepo.AssertExpectations(t)
+	}
+
+	// Test case 2: User not found / service returns error
+	{
+		userEmail := "nonexistent@example.com"
+		userService.On("GetUsersByEmails", []string{userEmail}).Return([]*repository.User{}, nil).Once()
+
+		overallBalance, err := expenseService.GetOverallOutstandingBalance(userEmail)
+		assert.NotNil(t, err)
+		assert.Contains(t, err.Error(), "user with email nonexistent@example.com not found")
+		assert.Equal(t, 0.0, overallBalance)
+		userService.AssertExpectations(t)
+		balanceRepo.AssertNotCalled(t, "GetOverallBalanceByUserID")
+	}
+
+	// Test case 3: Repository returns error
+	{
+		userEmail := "bob@example.com"
+		bob := &repository.User{ID: 2, Name: "Bob", Email: "bob@example.com"}
+		userService.On("GetUsersByEmails", []string{userEmail}).Return([]*repository.User{bob}, nil).Once()
+		balanceRepo.On("GetOverallBalanceByUserID", bob.ID).Return(0.0, errors.New("db error")).Once()
+
+		overallBalance, err := expenseService.GetOverallOutstandingBalance(userEmail)
+		assert.NotNil(t, err)
+		assert.Contains(t, err.Error(), "failed to get overall balance for user bob@example.com: db error")
+		assert.Equal(t, 0.0, overallBalance)
 		userService.AssertExpectations(t)
 		balanceRepo.AssertExpectations(t)
 	}

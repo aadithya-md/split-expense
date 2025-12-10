@@ -40,6 +40,11 @@ func (m *MockExpenseService) GetOutstandingBalancesForUser(userEmail string) ([]
 	return args.Get(0).([]service.UserBalanceView), args.Error(1)
 }
 
+func (m *MockExpenseService) GetOverallOutstandingBalance(userEmail string) (float64, error) {
+	args := m.Called(userEmail)
+	return args.Get(0).(float64), args.Error(1)
+}
+
 func TestExpenseHandler_CreateExpenseHandler(t *testing.T) {
 	mockService := new(MockExpenseService)
 	expenseHandler := NewExpenseHandler(mockService)
@@ -328,6 +333,49 @@ func TestExpenseHandler_GetOutstandingBalancesHandler(t *testing.T) {
 
 		assert.Equal(t, http.StatusInternalServerError, rr.Code)
 		//		assert.Contains(t, rr.Body.String(), "Failed to retrieve outstanding balances")
+		mockService.AssertExpectations(t)
+	}
+}
+
+func TestExpenseHandler_GetOverallOutstandingBalanceHandler(t *testing.T) {
+	mockService := new(MockExpenseService)
+	expenseHandler := NewExpenseHandler(mockService)
+
+	// Test Case 1: Successful retrieval of overall outstanding balance for a user
+	{
+		userEmail := "alice@example.com"
+		expectedBalance := 50.50
+
+		mockService.On("GetOverallOutstandingBalance", userEmail).Return(expectedBalance, nil).Once()
+
+		req := httptest.NewRequest("GET", "/balances/overall/by-user/"+userEmail, nil)
+		rr := httptest.NewRecorder()
+		router := mux.NewRouter()
+		router.HandleFunc("/balances/overall/by-user/{email}", expenseHandler.GetOverallOutstandingBalanceHandler).Methods("GET")
+		router.ServeHTTP(rr, req)
+
+		assert.Equal(t, http.StatusOK, rr.Code)
+		var actualResponse struct {
+			OverallBalance float64 `json:"overall_balance"`
+		}
+		json.NewDecoder(rr.Body).Decode(&actualResponse)
+		assert.Equal(t, expectedBalance, actualResponse.OverallBalance)
+		mockService.AssertExpectations(t)
+	}
+
+	// Test Case 2: User not found / Service returns error
+	{
+		userEmail := "nonexistent@example.com"
+		mockService.On("GetOverallOutstandingBalance", userEmail).Return(0.0, errors.New("user not found")).Once()
+
+		req := httptest.NewRequest("GET", "/balances/overall/by-user/"+userEmail, nil)
+		rr := httptest.NewRecorder()
+		router := mux.NewRouter()
+		router.HandleFunc("/balances/overall/by-user/{email}", expenseHandler.GetOverallOutstandingBalanceHandler).Methods("GET")
+		router.ServeHTTP(rr, req)
+
+		assert.Equal(t, http.StatusInternalServerError, rr.Code)
+		assert.Contains(t, rr.Body.String(), "user not found")
 		mockService.AssertExpectations(t)
 	}
 }

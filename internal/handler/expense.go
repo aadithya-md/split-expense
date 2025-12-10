@@ -141,3 +141,29 @@ func (h *ExpenseHandler) GetOutstandingBalancesHandler(w http.ResponseWriter, r 
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(balances)
 }
+
+func (h *ExpenseHandler) GetOverallOutstandingBalanceHandler(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	userEmail := vars["email"]
+	if userEmail == "" {
+		http.Error(w, "User email is required", http.StatusBadRequest)
+		return
+	}
+
+	overallBalance, err := h.expenseService.GetOverallOutstandingBalance(userEmail)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Create a simple response struct for the float64 balance
+	response := struct {
+		OverallBalance float64 `json:"overall_balance"`
+	}{
+		OverallBalance: overallBalance,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(response)
+}

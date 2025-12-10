@@ -16,6 +16,7 @@ type Balance struct {
 type BalanceRepository interface {
 	UpdateBalance(tx *sql.Tx, user1ID, user2ID int, amount float64) error
 	GetBalancesByUserID(userID int) ([]Balance, error)
+	GetOverallBalanceByUserID(userID int) (float64, error)
 }
 
 type balanceRepository struct {
@@ -76,4 +77,22 @@ func (r *balanceRepository) GetBalancesByUserID(userID int) ([]Balance, error) {
 	}
 
 	return balances, nil
+}
+
+func (r *balanceRepository) GetOverallBalanceByUserID(userID int) (float64, error) {
+	query := `
+		SELECT SUM(CASE
+			WHEN user1_id = ? THEN balance
+			WHEN user2_id = ? THEN -balance
+			ELSE 0
+		END) AS overall_balance
+		FROM balances
+		WHERE user1_id = ? OR user2_id = ?
+	`
+	var overallBalance float64
+	err := r.db.QueryRow(query, userID, userID, userID, userID).Scan(&overallBalance)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get overall balance for user %d: %w", userID, err)
+	}
+	return overallBalance, nil
 }

@@ -53,6 +53,7 @@ type ExpenseService interface {
 	CreateExpense(req CreateExpenseRequest) (*repository.Expense, error)
 	GetExpensesForUser(userEmail string) ([]repository.UserExpenseView, error)
 	GetOutstandingBalancesForUser(userEmail string) ([]UserBalanceView, error)
+	GetOverallOutstandingBalance(userEmail string) (float64, error)
 }
 
 type UserBalanceView struct {
@@ -302,4 +303,20 @@ func (s *expenseService) GetOutstandingBalancesForUser(userEmail string) ([]User
 	}
 
 	return userBalances, nil
+}
+
+func (s *expenseService) GetOverallOutstandingBalance(userEmail string) (float64, error) {
+	users, err := s.userService.GetUsersByEmails([]string{userEmail})
+	if err != nil || len(users) == 0 {
+		return 0, fmt.Errorf("user with email %s not found", userEmail)
+	}
+
+	userID := users[0].ID
+
+	overallBalance, err := s.balanceRepo.GetOverallBalanceByUserID(userID)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get overall balance for user %s: %w", userEmail, err)
+	}
+
+	return util.RoundToTwoDecimalPlaces(overallBalance), nil
 }

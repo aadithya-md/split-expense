@@ -20,6 +20,7 @@ func NewRouter(userService service.UserService, expenseService service.ExpenseSe
 	r.HandleFunc("/expenses", expenseHandler.CreateExpenseHandler).Methods("POST")
 	r.HandleFunc("/expenses/by-user/{email}", expenseHandler.GetExpensesForUserHandler).Methods("GET")
 	r.HandleFunc("/balances/by-user/{email}", expenseHandler.GetOutstandingBalancesHandler).Methods("GET")
+	r.HandleFunc("/balances/overall/by-user/{email}", expenseHandler.GetOverallOutstandingBalanceHandler).Methods("GET")
 
 	return r
 }
