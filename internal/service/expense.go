@@ -2,6 +2,7 @@ package service
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/aadithya-md/split-expense/internal/repository"
 	"github.com/aadithya-md/split-expense/internal/util"
@@ -51,15 +52,24 @@ type CreateExpenseRequest struct {
 type ExpenseService interface {
 	CreateExpense(req CreateExpenseRequest) (*repository.Expense, error)
 	GetExpensesForUser(userEmail string) ([]repository.UserExpenseView, error)
+	GetOutstandingBalancesForUser(userEmail string) ([]UserBalanceView, error)
+}
+
+type UserBalanceView struct {
+	WithUserEmail string    `json:"with_user_email"`
+	WithUserName  string    `json:"with_user_name"`
+	Amount        float64   `json:"amount"`
+	LastUpdated   time.Time `json:"last_updated"`
 }
 
 type expenseService struct {
 	expenseRepo repository.ExpenseRepository
 	userService UserService
+	balanceRepo repository.BalanceRepository
 }
 
-func NewExpenseService(expenseRepo repository.ExpenseRepository, userService UserService) ExpenseService {
-	return &expenseService{expenseRepo: expenseRepo, userService: userService}
+func NewExpenseService(expenseRepo repository.ExpenseRepository, userService UserService, balanceRepo repository.BalanceRepository) ExpenseService {
+	return &expenseService{expenseRepo: expenseRepo, userService: userService, balanceRepo: balanceRepo}
 }
 
 func (s *expenseService) calculateExpenseSplits(req CreateExpenseRequest) ([]repository.ExpenseSplit, error) {
@@ -195,7 +205,7 @@ func (s *expenseService) CreateExpense(req CreateExpenseRequest) (*repository.Ex
 		totalAmountPaidInSplits += split.AmountPaid
 	}
 
-	if roundToTwoDecimalPlaces(totalAmountPaidInSplits) != roundToTwoDecimalPlaces(req.TotalAmount) {
+	if util.RoundToTwoDecimalPlaces(totalAmountPaidInSplits) != util.RoundToTwoDecimalPlaces(req.TotalAmount) {
 		return nil, fmt.Errorf("total amount paid across all splits (%.2f) does not match total expense amount (%.2f)", totalAmountPaidInSplits, req.TotalAmount)
 	}
 
@@ -223,4 +233,73 @@ func (s *expenseService) GetExpensesForUser(userEmail string) ([]repository.User
 	}
 
 	return expenses, nil
+}
+
+func (s *expenseService) GetOutstandingBalancesForUser(userEmail string) ([]UserBalanceView, error) {
+	users, err := s.userService.GetUsersByEmails([]string{userEmail})
+	if err != nil || len(users) == 0 {
+		return nil, fmt.Errorf("user with email %s not found", userEmail)
+	}
+
+	userID := users[0].ID
+
+	balances, err := s.balanceRepo.GetBalancesByUserID(userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get balances for user %s: %w", userEmail, err)
+	}
+
+	var userBalances []UserBalanceView
+
+	// Collect all unique user IDs involved in the balances (excluding the current user)
+	otherUserIDsToFetch := util.NewSet[int]()
+	for _, b := range balances {
+		if b.User1ID == userID {
+			otherUserIDsToFetch.Add(b.User2ID)
+		} else {
+			otherUserIDsToFetch.Add(b.User1ID)
+		}
+	}
+
+	// Fetch all other users in a single batch call
+	otherUsers, err := s.userService.GetUsersByIDs(otherUserIDsToFetch.ToList())
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch other users for balances: %w", err)
+	}
+
+	// Create a map for efficient lookup of user details by ID
+	otherUsersMap := make(map[int]*repository.User)
+	for _, u := range otherUsers {
+		otherUsersMap[u.ID] = u
+	}
+
+	for _, b := range balances {
+		otherUserID := 0
+		balanceAmount := b.Balance
+
+		if b.User1ID == userID {
+			otherUserID = b.User2ID
+		} else {
+			otherUserID = b.User1ID
+			balanceAmount = -balanceAmount // Flip balance if current user is User2
+		}
+
+		var otherUserEmail, otherUserName string
+		if user, ok := otherUsersMap[otherUserID]; ok {
+			otherUserEmail = user.Email
+			otherUserName = user.Name
+		} else {
+			// This case should ideally not happen if GetUsersByIDs returns all requested users
+			otherUserEmail = fmt.Sprintf("unknown_user_%d", otherUserID)
+			otherUserName = "Unknown"
+		}
+
+		userBalances = append(userBalances, UserBalanceView{
+			WithUserEmail: otherUserEmail,
+			WithUserName:  otherUserName,
+			Amount:        util.RoundToTwoDecimalPlaces(balanceAmount),
+			LastUpdated:   b.LastUpdated,
+		})
+	}
+
+	return userBalances, nil
 }

@@ -122,3 +122,22 @@ func (h *ExpenseHandler) validateCreateExpenseRequest(req service.CreateExpenseR
 
 	return nil
 }
+
+func (h *ExpenseHandler) GetOutstandingBalancesHandler(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	userEmail := vars["email"]
+	if userEmail == "" {
+		http.Error(w, "User email is required", http.StatusBadRequest)
+		return
+	}
+
+	balances, err := h.expenseService.GetOutstandingBalancesForUser(userEmail)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(balances)
+}

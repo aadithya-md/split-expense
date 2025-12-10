@@ -10,6 +10,7 @@ type UserService interface {
 	CreateUser(name, email string) (*repository.User, error)
 	GetUser(id int) (*repository.User, error)
 	GetUsersByEmails(emails []string) ([]*repository.User, error)
+	GetUsersByIDs(ids []int) ([]*repository.User, error)
 }
 
 type userService struct {
@@ -46,6 +47,14 @@ func (s *userService) GetUsersByEmails(emails []string) ([]*repository.User, err
 	users, err := s.repo.GetUsersByEmails(emails)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get users by emails in service: %w", err)
+	}
+	return users, nil
+}
+
+func (s *userService) GetUsersByIDs(ids []int) ([]*repository.User, error) {
+	users, err := s.repo.GetUsersByIDs(ids)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get users by IDs in service: %w", err)
 	}
 	return users, nil
 }

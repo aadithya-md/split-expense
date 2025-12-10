@@ -33,6 +33,11 @@ func (m *MockUserRepository) GetUserByEmail(email string) (*repository.User, err
 	return args.Get(0).(*repository.User), args.Error(1)
 }
 
+func (m *MockUserRepository) GetUsersByIDs(ids []int) ([]*repository.User, error) {
+	args := m.Called(ids)
+	return args.Get(0).([]*repository.User), args.Error(1)
+}
+
 func TestUserService_CreateUser(t *testing.T) {
 	mockRepo := new(MockUserRepository)
 	userService := NewUserService(mockRepo)

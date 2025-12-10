@@ -2,15 +2,10 @@ package service
 
 import (
 	"fmt"
-	"math"
 
 	"github.com/aadithya-md/split-expense/internal/repository"
+	"github.com/aadithya-md/split-expense/internal/util"
 )
-
-// roundToTwoDecimalPlaces rounds a float64 to two decimal places.
-func roundToTwoDecimalPlaces(f float64) float64 {
-	return math.Round(f*100) / 100
-}
 
 type SplitStrategy interface {
 	CalculateSplits(req CreateExpenseRequest) ([]repository.ExpenseSplit, error) // Removed usersMap
@@ -23,7 +18,7 @@ func (s *equalSplitStrategy) CalculateSplits(req CreateExpenseRequest) ([]reposi
 		return nil, fmt.Errorf("equal split requires participants")
 	}
 
-	amountPerUser := roundToTwoDecimalPlaces(req.TotalAmount / float64(len(req.EqualSplits)))
+	amountPerUser := util.RoundToTwoDecimalPlaces(req.TotalAmount / float64(len(req.EqualSplits)))
 
 	splits := make([]repository.ExpenseSplit, 0, len(req.EqualSplits))
 	var currentTotalOwed float64
@@ -32,18 +27,18 @@ func (s *equalSplitStrategy) CalculateSplits(req CreateExpenseRequest) ([]reposi
 		// UserID is now populated by resolveUserEmailsToIDs
 		splitOwed := amountPerUser
 		if i == 0 { // Distribute rounding error to the first user
-			splitOwed = roundToTwoDecimalPlaces(req.TotalAmount - (amountPerUser * float64(len(req.EqualSplits)-1)))
+			splitOwed = util.RoundToTwoDecimalPlaces(req.TotalAmount - (amountPerUser * float64(len(req.EqualSplits)-1)))
 		}
 		splits = append(splits, repository.ExpenseSplit{
 			UserID:     es.UserID, // Use pre-populated UserID
-			AmountPaid: roundToTwoDecimalPlaces(es.AmountPaid),
+			AmountPaid: util.RoundToTwoDecimalPlaces(es.AmountPaid),
 			AmountOwed: splitOwed,
 		})
 		currentTotalOwed += splitOwed
 	}
 
 	// Final check to ensure total owed matches total amount after rounding adjustments
-	if roundToTwoDecimalPlaces(currentTotalOwed) != roundToTwoDecimalPlaces(req.TotalAmount) {
+	if util.RoundToTwoDecimalPlaces(currentTotalOwed) != util.RoundToTwoDecimalPlaces(req.TotalAmount) {
 		return nil, fmt.Errorf("rounding error: sum of equal split amounts (%.2f) does not match total amount (%.2f)", currentTotalOwed, req.TotalAmount)
 	}
 
@@ -70,19 +65,19 @@ func (s *percentageSplitStrategy) CalculateSplits(req CreateExpenseRequest) ([]r
 
 	for _, ps := range req.PercentageSplits {
 		// UserID is now populated by resolveUserEmailsToIDs
-		splitOwed := roundToTwoDecimalPlaces(req.TotalAmount * (ps.Percentage / 100))
+		splitOwed := util.RoundToTwoDecimalPlaces(req.TotalAmount * (ps.Percentage / 100))
 		splits = append(splits, repository.ExpenseSplit{
 			UserID:     ps.UserID, // Use pre-populated UserID
-			AmountPaid: roundToTwoDecimalPlaces(ps.AmountPaid),
+			AmountPaid: util.RoundToTwoDecimalPlaces(ps.AmountPaid),
 			AmountOwed: splitOwed,
 		})
 		currentTotalOwed += splitOwed
 	}
 
 	// Adjust for rounding errors
-	diff := roundToTwoDecimalPlaces(req.TotalAmount - currentTotalOwed)
+	diff := util.RoundToTwoDecimalPlaces(req.TotalAmount - currentTotalOwed)
 	if diff != 0 && len(splits) > 0 {
-		splits[0].AmountOwed = roundToTwoDecimalPlaces(splits[0].AmountOwed + diff)
+		splits[0].AmountOwed = util.RoundToTwoDecimalPlaces(splits[0].AmountOwed + diff)
 	}
 
 	return splits, nil
@@ -99,16 +94,16 @@ func (s *manualSplitStrategy) CalculateSplits(req CreateExpenseRequest) ([]repos
 	splits := make([]repository.ExpenseSplit, 0, len(req.ManualSplits))
 	for _, ms := range req.ManualSplits {
 		// UserID is now populated by resolveUserEmailsToIDs
-		splitOwed := roundToTwoDecimalPlaces(ms.AmountOwed)
+		splitOwed := util.RoundToTwoDecimalPlaces(ms.AmountOwed)
 		splits = append(splits, repository.ExpenseSplit{
 			UserID:     ms.UserID, // Use pre-populated UserID
-			AmountPaid: roundToTwoDecimalPlaces(ms.AmountPaid),
+			AmountPaid: util.RoundToTwoDecimalPlaces(ms.AmountPaid),
 			AmountOwed: splitOwed,
 		})
 		totalOwed += splitOwed
 	}
 
-	if roundToTwoDecimalPlaces(totalOwed) != roundToTwoDecimalPlaces(req.TotalAmount) {
+	if util.RoundToTwoDecimalPlaces(totalOwed) != util.RoundToTwoDecimalPlaces(req.TotalAmount) {
 		return nil, fmt.Errorf("manual split amounts (%.2f) must sum up to total amount (%.2f)", totalOwed, req.TotalAmount)
 	}
 

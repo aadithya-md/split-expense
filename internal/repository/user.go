@@ -15,7 +15,8 @@ type User struct {
 type UserRepository interface {
 	CreateUser(user *User) (*User, error)
 	GetUser(id int) (*User, error)
-	GetUsersByEmails(emails []string) ([]*User, error) // Changed return type
+	GetUsersByEmails(emails []string) ([]*User, error)
+	GetUsersByIDs(ids []int) ([]*User, error)
 }
 
 type userRepository struct {
@@ -98,6 +99,54 @@ func (r *userRepository) GetUsersByEmails(emails []string) ([]*User, error) {
 			}
 		}
 		return nil, fmt.Errorf("some users not found for emails: %s", strings.Join(missingEmails, ", "))
+	}
+
+	return users, nil
+}
+
+func (r *userRepository) GetUsersByIDs(ids []int) ([]*User, error) {
+	if len(ids) == 0 {
+		return []*User{}, nil
+	}
+
+	placeholders := make([]string, len(ids))
+	args := make([]interface{}, len(ids))
+	for i, id := range ids {
+		placeholders[i] = "?"
+		args[i] = id
+	}
+
+	query := fmt.Sprintf("SELECT id, name, email FROM users WHERE id IN (%s)", strings.Join(placeholders, ", "))
+	rows, err := r.db.Query(query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get users by IDs: %w", err)
+	}
+	defer rows.Close()
+
+	var users []*User
+	foundIDs := make(map[int]bool)
+	for rows.Next() {
+		user := &User{}
+		if err := rows.Scan(&user.ID, &user.Name, &user.Email); err != nil {
+			return nil, fmt.Errorf("failed to scan user row: %w", err)
+		}
+		users = append(users, user)
+		foundIDs[user.ID] = true
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating user rows: %w", err)
+	}
+
+	// Check if all requested IDs were found
+	if len(users) != len(ids) {
+		missingIDs := []string{}
+		for _, id := range ids {
+			if !foundIDs[id] {
+				missingIDs = append(missingIDs, fmt.Sprintf("%d", id))
+			}
+		}
+		return nil, fmt.Errorf("some users not found for IDs: %s", strings.Join(missingIDs, ", "))
 	}
 
 	return users, nil

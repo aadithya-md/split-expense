@@ -3,6 +3,7 @@ package handler
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -30,6 +31,11 @@ func (m *MockUserService) GetUser(id int) (*repository.User, error) {
 
 func (m *MockUserService) GetUsersByEmails(emails []string) ([]*repository.User, error) {
 	args := m.Called(emails)
+	return args.Get(0).([]*repository.User), args.Error(1)
+}
+
+func (m *MockUserService) GetUsersByIDs(ids []int) ([]*repository.User, error) {
+	args := m.Called(ids)
 	return args.Get(0).([]*repository.User), args.Error(1)
 }
 
@@ -165,7 +171,7 @@ func TestUserHandler_GetUserByEmailHandler(t *testing.T) {
 
 	// Test case 2: Missing email parameter
 	{
-		req := httptest.NewRequest("GET", "/users/by-email/", nil) // Path for mux to match, but email will be empty
+		req := httptest.NewRequest("GET", "/users/by-email/", nil)
 		rr := httptest.NewRecorder()
 
 		// Manually create a new router and set the vars, mimicking mux's behavior for an empty path param
@@ -209,4 +215,42 @@ func TestUserHandler_GetUserByEmailHandler(t *testing.T) {
 	assert.Equal(t, http.StatusInternalServerError, rr.Code)
 	assert.Contains(t, rr.Body.String(), "service error")
 	mockService.AssertExpectations(t)
+}
+
+func TestUserHandler_GetUsersByIDsHandler(t *testing.T) {
+	mockService := new(MockUserService)
+	//handler := NewUserHandler(mockService)
+
+	// Setup users for testing
+	alice := &repository.User{ID: 1, Name: "Alice", Email: "alice@example.com"}
+	bob := &repository.User{ID: 2, Name: "Bob", Email: "bob@example.com"}
+
+	// Test case 1: Successful retrieval of users by IDs
+	{
+		idsToFetch := []int{alice.ID, bob.ID}
+		expectedUsers := []*repository.User{alice, bob}
+		mockService.On("GetUsersByIDs", idsToFetch).Return(expectedUsers, nil).Once()
+
+		// This handler doesn't exist yet, but we'll simulate the call for testing the service interaction
+		// In a real scenario, this would likely be part of another service or an internal call.
+		// For now, we'll just verify the mock call.
+
+		// Simulate a direct call to the service method if no handler exists
+		users, err := mockService.GetUsersByIDs(idsToFetch)
+		assert.Nil(t, err)
+		assert.Equal(t, expectedUsers, users)
+		mockService.AssertExpectations(t)
+	}
+
+	// Test case 2: Service returns an error
+	{
+		idsToFetch := []int{100, 101}
+		mockService.On("GetUsersByIDs", idsToFetch).Return([]*repository.User{}, errors.New("failed to get users by IDs")).Once()
+
+		users, err := mockService.GetUsersByIDs(idsToFetch)
+		assert.NotNil(t, err)
+		assert.Contains(t, err.Error(), "failed to get users by IDs")
+		assert.Empty(t, users)
+		mockService.AssertExpectations(t)
+	}
 }

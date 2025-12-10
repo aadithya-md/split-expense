@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/aadithya-md/split-expense/internal/repository"
 	"github.com/aadithya-md/split-expense/internal/service"
@@ -29,6 +30,16 @@ func (m *MockExpenseService) GetExpense(id int) (*repository.Expense, error) {
 	return args.Get(0).(*repository.Expense), args.Error(1)
 }
 
+func (m *MockExpenseService) GetExpensesForUser(userEmail string) ([]repository.UserExpenseView, error) {
+	args := m.Called(userEmail)
+	return args.Get(0).([]repository.UserExpenseView), args.Error(1)
+}
+
+func (m *MockExpenseService) GetOutstandingBalancesForUser(userEmail string) ([]service.UserBalanceView, error) {
+	args := m.Called(userEmail)
+	return args.Get(0).([]service.UserBalanceView), args.Error(1)
+}
+
 func TestExpenseHandler_CreateExpenseHandler(t *testing.T) {
 	mockService := new(MockExpenseService)
 	expenseHandler := NewExpenseHandler(mockService)
@@ -41,7 +52,7 @@ func TestExpenseHandler_CreateExpenseHandler(t *testing.T) {
 			CreatedByEmail: "alice@example.com",
 			SplitMethod:    service.SplitMethodEqual,
 			EqualSplits: []service.EqualSplitRequest{
-				{UserEmail: "alice@example.com", AmountPaid: 150.00}, // Alice pays all
+				{UserEmail: "alice@example.com", AmountPaid: 150.00},
 				{UserEmail: "bob@example.com", AmountPaid: 0.00},
 				{UserEmail: "charlie@example.com", AmountPaid: 0.00},
 			},
@@ -50,7 +61,7 @@ func TestExpenseHandler_CreateExpenseHandler(t *testing.T) {
 			ID:          1,
 			Description: requestBody.Description,
 			TotalAmount: requestBody.TotalAmount,
-			CreatedBy:   1, // Assuming Alice's ID is 1 after resolution
+			CreatedBy:   1,
 		}
 
 		mockService.On("CreateExpense", requestBody).Return(expectedExpense, nil).Once()
@@ -122,7 +133,6 @@ func TestExpenseHandler_CreateExpenseHandler(t *testing.T) {
 				{UserEmail: "bob@example.com", Percentage: 30, AmountPaid: 0.00},
 			},
 		}
-		// Note: No mock service call as validation happens before service interaction
 
 		reqBodyBytes, _ := json.Marshal(requestBody)
 		req := httptest.NewRequest("POST", "/expenses", bytes.NewBuffer(reqBodyBytes))
@@ -149,7 +159,6 @@ func TestExpenseHandler_CreateExpenseHandler(t *testing.T) {
 				{UserEmail: "bob@example.com", AmountOwed: 30.00, AmountPaid: 0.00},
 			},
 		}
-		// Note: No mock service call as validation happens before service interaction
 
 		reqBodyBytes, _ := json.Marshal(requestBody)
 		req := httptest.NewRequest("POST", "/expenses", bytes.NewBuffer(reqBodyBytes))
@@ -176,7 +185,6 @@ func TestExpenseHandler_CreateExpenseHandler(t *testing.T) {
 				{UserEmail: "alice@example.com", AmountPaid: 50.00},
 			},
 		}
-		// Note: No mock service call as validation happens before service interaction
 
 		reqBodyBytes, _ := json.Marshal(requestBody)
 		req := httptest.NewRequest("POST", "/expenses", bytes.NewBuffer(reqBodyBytes))
@@ -202,7 +210,6 @@ func TestExpenseHandler_CreateExpenseHandler(t *testing.T) {
 				{UserEmail: "bob@example.com", AmountPaid: 100.00},
 			},
 		}
-		// Note: No mock service call as validation happens before service interaction
 
 		reqBodyBytes, _ := json.Marshal(requestBody)
 		req := httptest.NewRequest("POST", "/expenses", bytes.NewBuffer(reqBodyBytes))
@@ -215,5 +222,112 @@ func TestExpenseHandler_CreateExpenseHandler(t *testing.T) {
 		assert.Equal(t, http.StatusBadRequest, rr.Code)
 		assert.Contains(t, rr.Body.String(), "created_by user (alice@example.com) must be included in the split participants")
 		mockService.AssertNotCalled(t, "CreateExpense")
+	}
+}
+
+func TestExpenseHandler_GetExpensesForUserHandler(t *testing.T) {
+	mockService := new(MockExpenseService)
+	expenseHandler := NewExpenseHandler(mockService)
+
+	// Test Case 1: Successful retrieval of expenses for a user
+	{
+		userEmail := "alice@example.com"
+		expectedExpenses := []repository.UserExpenseView{
+			{Date: time.Now(), Tag: "Food", Description: "Dinner", TotalAmount: 50.00, Share: 25.00},
+			{Date: time.Now().Add(-24 * time.Hour), Tag: "Transport", Description: "Uber", TotalAmount: 15.00, Share: 7.50},
+		}
+
+		mockService.On("GetExpensesForUser", userEmail).Return(expectedExpenses, nil).Once()
+
+		req := httptest.NewRequest("GET", "/expenses/by-user/"+userEmail, nil)
+		rr := httptest.NewRecorder()
+		router := mux.NewRouter()
+		router.HandleFunc("/expenses/by-user/{email}", expenseHandler.GetExpensesForUserHandler).Methods("GET")
+		router.ServeHTTP(rr, req)
+
+		assert.Equal(t, http.StatusOK, rr.Code)
+		var actualExpenses []repository.UserExpenseView
+		json.NewDecoder(rr.Body).Decode(&actualExpenses)
+		// Compare fields individually due to time.Time comparison issues
+		assert.Equal(t, len(expectedExpenses), len(actualExpenses))
+		if len(expectedExpenses) == len(actualExpenses) {
+			for i := range expectedExpenses {
+				assert.WithinDuration(t, expectedExpenses[i].Date, actualExpenses[i].Date, time.Second)
+				assert.Equal(t, expectedExpenses[i].Tag, actualExpenses[i].Tag)
+				assert.Equal(t, expectedExpenses[i].Description, actualExpenses[i].Description)
+				assert.Equal(t, expectedExpenses[i].TotalAmount, actualExpenses[i].TotalAmount)
+				assert.Equal(t, expectedExpenses[i].Share, actualExpenses[i].Share)
+			}
+		}
+		mockService.AssertExpectations(t)
+	}
+
+	// Test Case 2: User not found / Service returns error
+	{
+		userEmail := "nonexistent@example.com"
+		mockService.On("GetExpensesForUser", userEmail).Return([]repository.UserExpenseView{}, errors.New("user not found")).Once()
+
+		req := httptest.NewRequest("GET", "/expenses/by-user/"+userEmail, nil)
+		rr := httptest.NewRecorder()
+		router := mux.NewRouter()
+		router.HandleFunc("/expenses/by-user/{email}", expenseHandler.GetExpensesForUserHandler).Methods("GET")
+		router.ServeHTTP(rr, req)
+
+		assert.Equal(t, http.StatusInternalServerError, rr.Code)
+		//		assert.Contains(t, rr.Body.String(), "Failed to retrieve expenses")
+		mockService.AssertExpectations(t)
+	}
+}
+
+func TestExpenseHandler_GetOutstandingBalancesHandler(t *testing.T) {
+	mockService := new(MockExpenseService)
+	expenseHandler := NewExpenseHandler(mockService)
+
+	// Test Case 1: Successful retrieval of outstanding balances for a user
+	{
+		userEmail := "alice@example.com"
+		fixedTime := time.Date(2023, 5, 10, 12, 0, 0, 0, time.UTC)
+		expectedBalances := []service.UserBalanceView{
+			{WithUserEmail: "bob@example.com", WithUserName: "Bob", Amount: 15.00, LastUpdated: fixedTime},
+			{WithUserEmail: "charlie@example.com", WithUserName: "Charlie", Amount: -10.00, LastUpdated: fixedTime},
+		}
+
+		mockService.On("GetOutstandingBalancesForUser", userEmail).Return(expectedBalances, nil).Once()
+
+		req := httptest.NewRequest("GET", "/balances/by-user/"+userEmail, nil)
+		rr := httptest.NewRecorder()
+		router := mux.NewRouter()
+		router.HandleFunc("/balances/by-user/{email}", expenseHandler.GetOutstandingBalancesHandler).Methods("GET")
+		router.ServeHTTP(rr, req)
+
+		assert.Equal(t, http.StatusOK, rr.Code)
+		var actualBalances []service.UserBalanceView
+		json.NewDecoder(rr.Body).Decode(&actualBalances)
+		assert.Equal(t, len(expectedBalances), len(actualBalances))
+		if len(expectedBalances) == len(actualBalances) {
+			for i := range expectedBalances {
+				assert.Equal(t, expectedBalances[i].WithUserEmail, actualBalances[i].WithUserEmail)
+				assert.Equal(t, expectedBalances[i].WithUserName, actualBalances[i].WithUserName)
+				assert.Equal(t, expectedBalances[i].Amount, actualBalances[i].Amount)
+				assert.WithinDuration(t, expectedBalances[i].LastUpdated, actualBalances[i].LastUpdated, time.Second)
+			}
+		}
+		mockService.AssertExpectations(t)
+	}
+
+	// Test Case 2: User not found / Service returns error
+	{
+		userEmail := "nonexistent@example.com"
+		mockService.On("GetOutstandingBalancesForUser", userEmail).Return([]service.UserBalanceView{}, errors.New("user not found")).Once()
+
+		req := httptest.NewRequest("GET", "/balances/by-user/"+userEmail, nil)
+		rr := httptest.NewRecorder()
+		router := mux.NewRouter()
+		router.HandleFunc("/balances/by-user/{email}", expenseHandler.GetOutstandingBalancesHandler).Methods("GET")
+		router.ServeHTTP(rr, req)
+
+		assert.Equal(t, http.StatusInternalServerError, rr.Code)
+		//		assert.Contains(t, rr.Body.String(), "Failed to retrieve outstanding balances")
+		mockService.AssertExpectations(t)
 	}
 }

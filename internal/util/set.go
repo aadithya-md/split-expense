@@ -1,5 +1,7 @@
 package util
 
+import "math"
+
 type Set[T comparable] map[T]struct{}
 
 func NewSet[T comparable](items ...T) *Set[T] {
@@ -29,4 +31,9 @@ func (s *Set[T]) ToList() []T {
 
 func (s *Set[T]) Remove(item T) {
 	delete(*s, item)
+}
+
+// RoundToTwoDecimalPlaces rounds a float64 to two decimal places.
+func RoundToTwoDecimalPlaces(f float64) float64 {
+	return math.Round(f*100) / 100
 }
