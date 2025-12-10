@@ -3,6 +3,7 @@ package repository
 import (
 	"database/sql"
 	"fmt"
+	"strings"
 )
 
 type User struct {
@@ -14,7 +15,7 @@ type User struct {
 type UserRepository interface {
 	CreateUser(user *User) (*User, error)
 	GetUser(id int) (*User, error)
-	GetUserByEmail(email string) (*User, error)
+	GetUsersByEmails(emails []string) ([]*User, error) // Changed return type
 }
 
 type userRepository struct {
@@ -54,15 +55,50 @@ func (r *userRepository) GetUser(id int) (*User, error) {
 	return user, nil
 }
 
-func (r *userRepository) GetUserByEmail(email string) (*User, error) {
-	query := "SELECT id, name, email FROM users WHERE email = ?"
-	user := &User{}
-	err := r.db.QueryRow(query, email).Scan(&user.ID, &user.Name, &user.Email)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return nil, fmt.Errorf("user not found")
-		}
-		return nil, fmt.Errorf("failed to get user by email: %w", err)
+func (r *userRepository) GetUsersByEmails(emails []string) ([]*User, error) {
+	if len(emails) == 0 {
+		return []*User{}, nil
 	}
-	return user, nil
+
+	placeholders := make([]string, len(emails))
+	args := make([]interface{}, len(emails))
+	for i, email := range emails {
+		placeholders[i] = "?"
+		args[i] = email
+	}
+
+	query := fmt.Sprintf("SELECT id, name, email FROM users WHERE email IN (%s)", strings.Join(placeholders, ", "))
+	rows, err := r.db.Query(query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get users by emails: %w", err)
+	}
+	defer rows.Close()
+
+	var users []*User
+	foundEmails := make(map[string]bool)
+	for rows.Next() {
+		user := &User{}
+		if err := rows.Scan(&user.ID, &user.Name, &user.Email); err != nil {
+			return nil, fmt.Errorf("failed to scan user row: %w", err)
+		}
+		users = append(users, user)
+		foundEmails[user.Email] = true
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating user rows: %w", err)
+	}
+
+	// Check if all requested emails were found
+	if len(users) != len(emails) {
+		missingEmails := []string{}
+		for _, email := range emails {
+			if !foundEmails[email] {
+				missingEmails = append(missingEmails, email)
+			}
+		}
+		return nil, fmt.Errorf("some users not found for emails: %s", strings.Join(missingEmails, ", "))
+	}
+
+	return users, nil
 }

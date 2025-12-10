@@ -23,6 +23,11 @@ func (m *MockUserRepository) GetUser(id int) (*repository.User, error) {
 	return args.Get(0).(*repository.User), args.Error(1)
 }
 
+func (m *MockUserRepository) GetUsersByEmails(emails []string) ([]*repository.User, error) {
+	args := m.Called(emails)
+	return args.Get(0).([]*repository.User), args.Error(1)
+}
+
 func (m *MockUserRepository) GetUserByEmail(email string) (*repository.User, error) {
 	args := m.Called(email)
 	return args.Get(0).(*repository.User), args.Error(1)
@@ -89,28 +94,30 @@ func TestUserService_GetUserByEmail(t *testing.T) {
 
 	// Test case 1: Successful retrieval by email
 	expectedUser := &repository.User{ID: 1, Name: "Test User", Email: "test@example.com"}
-	mockRepo.On("GetUserByEmail", "test@example.com").Return(expectedUser, nil).Once()
+	mockRepo.On("GetUsersByEmails", []string{"test@example.com"}).Return([]*repository.User{expectedUser}, nil).Once()
 
-	user, err := userService.GetUserByEmail("test@example.com")
+	users, err := userService.GetUsersByEmails([]string{"test@example.com"})
 	assert.Nil(t, err)
-	assert.Equal(t, expectedUser, user)
+	assert.NotNil(t, users)
+	assert.Equal(t, 1, len(users))
+	assert.Equal(t, expectedUser, users[0])
 	mockRepo.AssertExpectations(t)
 
 	// Test case 2: User not found by email
-	mockRepo.On("GetUserByEmail", "nonexistent@example.com").Return((*repository.User)(nil), fmt.Errorf("user not found")).Once()
+	mockRepo.On("GetUsersByEmails", []string{"nonexistent@example.com"}).Return([]*repository.User{}, fmt.Errorf("some users not found for emails: nonexistent@example.com")).Once()
 
-	user, err = userService.GetUserByEmail("nonexistent@example.com")
+	users, err = userService.GetUsersByEmails([]string{"nonexistent@example.com"})
 	assert.NotNil(t, err)
-	assert.Contains(t, err.Error(), "user not found")
-	assert.Nil(t, user)
+	assert.Contains(t, err.Error(), "some users not found")
+	assert.Empty(t, users)
 	mockRepo.AssertExpectations(t)
 
 	// Test case 3: Error from repository
-	mockRepo.On("GetUserByEmail", "error@example.com").Return((*repository.User)(nil), fmt.Errorf("repo error")).Once()
+	mockRepo.On("GetUsersByEmails", []string{"error@example.com"}).Return([]*repository.User{}, fmt.Errorf("repo error")).Once()
 
-	user, err = userService.GetUserByEmail("error@example.com")
+	users, err = userService.GetUsersByEmails([]string{"error@example.com"})
 	assert.NotNil(t, err)
 	assert.Contains(t, err.Error(), "repo error")
-	assert.Nil(t, user)
+	assert.Empty(t, users)
 	mockRepo.AssertExpectations(t)
 }

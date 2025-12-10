@@ -9,7 +9,7 @@ import (
 type UserService interface {
 	CreateUser(name, email string) (*repository.User, error)
 	GetUser(id int) (*repository.User, error)
-	GetUserByEmail(email string) (*repository.User, error)
+	GetUsersByEmails(emails []string) ([]*repository.User, error)
 }
 
 type userService struct {
@@ -42,10 +42,10 @@ func (s *userService) GetUser(id int) (*repository.User, error) {
 	return user, nil
 }
 
-func (s *userService) GetUserByEmail(email string) (*repository.User, error) {
-	user, err := s.repo.GetUserByEmail(email)
+func (s *userService) GetUsersByEmails(emails []string) ([]*repository.User, error) {
+	users, err := s.repo.GetUsersByEmails(emails)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get user by email in service: %w", err)
+		return nil, fmt.Errorf("failed to get users by emails in service: %w", err)
 	}
-	return user, nil
+	return users, nil
 }

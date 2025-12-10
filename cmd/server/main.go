@@ -40,7 +40,11 @@ func main() {
 	userRepo := repository.NewUserRepository(db)
 	userService := service.NewUserService(userRepo)
 
-	r := router.NewRouter(userService)
+	balanceRepo := repository.NewBalanceRepository(db)
+	expenseRepo := repository.NewExpenseRepository(db, balanceRepo)
+	expenseService := service.NewExpenseService(expenseRepo, userRepo)
+
+	r := router.NewRouter(userService, expenseService)
 
 	srv := &http.Server{
 		Addr:         fmt.Sprintf("%s:%s", cfg.HttpServer.Address, cfg.HttpServer.Port),

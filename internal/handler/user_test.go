@@ -28,9 +28,9 @@ func (m *MockUserService) GetUser(id int) (*repository.User, error) {
 	return args.Get(0).(*repository.User), args.Error(1)
 }
 
-func (m *MockUserService) GetUserByEmail(email string) (*repository.User, error) {
-	args := m.Called(email)
-	return args.Get(0).(*repository.User), args.Error(1)
+func (m *MockUserService) GetUsersByEmails(emails []string) ([]*repository.User, error) {
+	args := m.Called(emails)
+	return args.Get(0).([]*repository.User), args.Error(1)
 }
 
 func TestUserHandler_CreateUserHandler(t *testing.T) {
@@ -148,13 +148,13 @@ func TestUserHandler_GetUserByEmailHandler(t *testing.T) {
 
 	// Test case 1: Successful retrieval by email
 	expectedUser := &repository.User{ID: 1, Name: "Test User", Email: "test@example.com"}
-	mockService.On("GetUserByEmail", "test@example.com").Return(expectedUser, nil).Once()
+	mockService.On("GetUsersByEmails", []string{"test@example.com"}).Return([]*repository.User{expectedUser}, nil).Once()
 
-	req := httptest.NewRequest("GET", "/users/by-email?email=test@example.com", nil)
+	req := httptest.NewRequest("GET", "/users/by-email/test@example.com", nil)
 	rr := httptest.NewRecorder()
 
 	rtr := mux.NewRouter()
-	rtr.HandleFunc("/users/by-email", handler.GetUserByEmailHandler).Methods("GET")
+	rtr.HandleFunc("/users/by-email/{email}", handler.GetUserByEmailHandler).Methods("GET")
 	rtr.ServeHTTP(rr, req)
 
 	assert.Equal(t, http.StatusOK, rr.Code)
@@ -164,25 +164,46 @@ func TestUserHandler_GetUserByEmailHandler(t *testing.T) {
 	mockService.AssertExpectations(t)
 
 	// Test case 2: Missing email parameter
-	req = httptest.NewRequest("GET", "/users/by-email", nil)
+	{
+		req := httptest.NewRequest("GET", "/users/by-email/", nil) // Path for mux to match, but email will be empty
+		rr := httptest.NewRecorder()
+
+		// Manually create a new router and set the vars, mimicking mux's behavior for an empty path param
+		rtr := mux.NewRouter()
+		rtr.HandleFunc("/users/by-email/{email}", handler.GetUserByEmailHandler).Methods("GET")
+
+		// Create a mock request context with an empty "email" variable
+		req = mux.SetURLVars(req, map[string]string{"email": ""})
+		handler.GetUserByEmailHandler(rr, req)
+
+		assert.Equal(t, http.StatusBadRequest, rr.Code)
+		assert.Contains(t, rr.Body.String(), "Email parameter is required\n")
+		mockService.AssertNotCalled(t, "GetUsersByEmails")
+	}
+	mockService.AssertNotCalled(t, "GetUsersByEmails")
+
+	// Test case 3: User not found
+	mockService.On("GetUsersByEmails", []string{"nonexistent@example.com"}).Return([]*repository.User{}, fmt.Errorf("user not found")).Once()
+
+	req = httptest.NewRequest("GET", "/users/by-email/nonexistent@example.com", nil)
 	rr = httptest.NewRecorder()
 
 	rtr = mux.NewRouter()
-	rtr.HandleFunc("/users/by-email", handler.GetUserByEmailHandler).Methods("GET")
+	rtr.HandleFunc("/users/by-email/{email}", handler.GetUserByEmailHandler).Methods("GET")
 	rtr.ServeHTTP(rr, req)
 
-	assert.Equal(t, http.StatusBadRequest, rr.Code)
-	assert.Contains(t, rr.Body.String(), "Email parameter is required")
-	mockService.AssertNotCalled(t, "GetUserByEmail")
+	assert.Equal(t, http.StatusInternalServerError, rr.Code)
+	assert.Contains(t, rr.Body.String(), "user not found")
+	mockService.AssertExpectations(t)
 
-	// Test case 3: Service error
-	mockService.On("GetUserByEmail", "error@example.com").Return((*repository.User)(nil), fmt.Errorf("service error")).Once()
+	// Test case 4: Service error
+	mockService.On("GetUsersByEmails", []string{"error@example.com"}).Return([]*repository.User{}, fmt.Errorf("service error")).Once()
 
-	req = httptest.NewRequest("GET", "/users/by-email?email=error@example.com", nil)
+	req = httptest.NewRequest("GET", "/users/by-email/error@example.com", nil)
 	rr = httptest.NewRecorder()
 
 	rtr = mux.NewRouter()
-	rtr.HandleFunc("/users/by-email", handler.GetUserByEmailHandler).Methods("GET")
+	rtr.HandleFunc("/users/by-email/{email}", handler.GetUserByEmailHandler).Methods("GET")
 	rtr.ServeHTTP(rr, req)
 
 	assert.Equal(t, http.StatusInternalServerError, rr.Code)

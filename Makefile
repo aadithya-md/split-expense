@@ -1,7 +1,7 @@
 PHONY: up-db run-service
 
 up-db:
-	docker-compose up -d mysql
+	docker-compose up -d mysql --remove-orphans
 
 run-service:
 	go run cmd/server/main.go

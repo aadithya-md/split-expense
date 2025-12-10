@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -65,18 +66,27 @@ func (h *UserHandler) GetUserHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *UserHandler) GetUserByEmailHandler(w http.ResponseWriter, r *http.Request) {
-	email := r.URL.Query().Get("email")
+	vars := mux.Vars(r) // Use mux.Vars to get path parameters
+	email := vars["email"]
+
 	if email == "" {
+		// This check might be redundant if mux.Vars ensures it's present
 		http.Error(w, "Email parameter is required", http.StatusBadRequest)
 		return
 	}
 
-	user, err := h.userService.GetUserByEmail(email)
+	users, err := h.userService.GetUsersByEmails([]string{email})
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
+	if len(users) == 0 {
+		http.Error(w, fmt.Sprintf("user not found for email: %s", email), http.StatusInternalServerError)
+		return
+	}
+
+	user := users[0] // Assuming only one user for a single email lookup
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(user)
 }
