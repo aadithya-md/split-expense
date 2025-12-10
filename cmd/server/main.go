@@ -42,7 +42,7 @@ func main() {
 
 	balanceRepo := repository.NewBalanceRepository(db)
 	expenseRepo := repository.NewExpenseRepository(db, balanceRepo)
-	expenseService := service.NewExpenseService(expenseRepo, userRepo)
+	expenseService := service.NewExpenseService(expenseRepo, userService)
 
 	r := router.NewRouter(userService, expenseService)
 

@@ -13,8 +13,8 @@ type MockExpenseRepository struct {
 	mock.Mock
 }
 
-func (m *MockExpenseRepository) CreateExpense(expense *repository.Expense, splits []repository.ExpenseSplit) (*repository.Expense, error) {
-	args := m.Called(expense, splits)
+func (m *MockExpenseRepository) CreateExpense(expense *repository.Expense, splits []repository.ExpenseSplit, balanceUpdates []repository.BalanceUpdate) (*repository.Expense, error) {
+	args := m.Called(expense, splits, balanceUpdates)
 	return args.Get(0).(*repository.Expense), args.Error(1)
 }
 
@@ -25,29 +25,29 @@ func (m *MockExpenseRepository) GetExpense(id int) (*repository.Expense, error) 
 
 // This mock should be defined in a separate file if used by multiple tests.
 // For now, it's here for simplicity.
-type MockUserRepositoryForExpenseService struct {
+type MockUserService struct {
 	mock.Mock
 }
 
-func (m *MockUserRepositoryForExpenseService) CreateUser(user *repository.User) (*repository.User, error) {
-	args := m.Called(user)
+func (m *MockUserService) CreateUser(name, email string) (*repository.User, error) {
+	args := m.Called(name, email)
 	return args.Get(0).(*repository.User), args.Error(1)
 }
 
-func (m *MockUserRepositoryForExpenseService) GetUser(id int) (*repository.User, error) {
+func (m *MockUserService) GetUser(id int) (*repository.User, error) {
 	args := m.Called(id)
 	return args.Get(0).(*repository.User), args.Error(1)
 }
 
-func (m *MockUserRepositoryForExpenseService) GetUsersByEmails(emails []string) ([]*repository.User, error) {
+func (m *MockUserService) GetUsersByEmails(emails []string) ([]*repository.User, error) {
 	args := m.Called(emails)
 	return args.Get(0).([]*repository.User), args.Error(1)
 }
 
 func TestExpenseService_CreateExpense(t *testing.T) {
 	expenseRepo := new(MockExpenseRepository)
-	userRepo := new(MockUserRepositoryForExpenseService)
-	expenseService := NewExpenseService(expenseRepo, userRepo)
+	userService := new(MockUserService)
+	expenseService := NewExpenseService(expenseRepo, userService)
 
 	// Setup common users for all tests
 	alice := &repository.User{ID: 1, Name: "Alice", Email: "alice@example.com"}
@@ -104,11 +104,11 @@ func TestExpenseService_CreateExpense(t *testing.T) {
 				{UserEmail: "charlie@example.com", AmountPaid: 10.00},
 			},
 		}
-		userRepo.On("GetUsersByEmails", mock.AnythingOfType("[]string")).Return([]*repository.User{alice, bob, charlie}, nil).Once()
+		userService.On("GetUsersByEmails", mock.AnythingOfType("[]string")).Return([]*repository.User{alice, bob, charlie}, nil).Once()
 
-		expectedExpense := &repository.Expense{ID: 1, Description: req.Description, TotalAmount: req.TotalAmount, CreatedBy: alice.ID, CreatedAt: time.Now()}
+		expectedExpense := &repository.Expense{ID: 1, Description: req.Description, Tag: req.Tag, TotalAmount: req.TotalAmount, CreatedBy: alice.ID, CreatedAt: time.Now()}
 		expectedSplits := createExpectedSplits(req.TotalAmount, req.SplitMethod, usersMap, req)
-		expenseRepo.On("CreateExpense", mock.AnythingOfType("*repository.Expense"), expectedSplits).Return(expectedExpense, nil).Once()
+		expenseRepo.On("CreateExpense", mock.AnythingOfType("*repository.Expense"), expectedSplits, mock.Anything).Return(expectedExpense, nil).Once()
 
 		createdExpense, err := expenseService.CreateExpense(req)
 		assert.Nil(t, err)
@@ -117,7 +117,7 @@ func TestExpenseService_CreateExpense(t *testing.T) {
 		assert.Equal(t, expectedExpense.CreatedBy, createdExpense.CreatedBy)
 		assert.NotZero(t, createdExpense.CreatedAt) // CreatedAt is set by repo now
 		expenseRepo.AssertExpectations(t)
-		userRepo.AssertExpectations(t)
+		userService.AssertExpectations(t)
 	}
 
 	// Test case 2: User not found during email mapping
@@ -131,14 +131,14 @@ func TestExpenseService_CreateExpense(t *testing.T) {
 				{UserEmail: "nonexistent@example.com", AmountPaid: 30.00},
 			},
 		}
-		userRepo.On("GetUsersByEmails", mock.AnythingOfType("[]string")).Return([]*repository.User{}, nil).Once() // Return empty slice, no error
+		userService.On("GetUsersByEmails", mock.AnythingOfType("[]string")).Return([]*repository.User{}, nil).Once() // Return empty slice, no error
 
 		createdExpense, err := expenseService.CreateExpense(req)
 		assert.NotNil(t, err)
 		assert.Contains(t, err.Error(), "created_by user not found")
 		assert.Nil(t, createdExpense)
 		expenseRepo.AssertNotCalled(t, "CreateExpense")
-		userRepo.AssertExpectations(t)
+		userService.AssertExpectations(t)
 	}
 
 	// Test case 3: Total amount paid mismatch
@@ -153,14 +153,14 @@ func TestExpenseService_CreateExpense(t *testing.T) {
 				{UserEmail: "bob@example.com", AmountPaid: 10.00},
 			},
 		}
-		userRepo.On("GetUsersByEmails", mock.AnythingOfType("[]string")).Return([]*repository.User{alice, bob}, nil).Once()
+		userService.On("GetUsersByEmails", mock.AnythingOfType("[]string")).Return([]*repository.User{alice, bob}, nil).Once()
 
 		createdExpense, err := expenseService.CreateExpense(req)
 		assert.NotNil(t, err)
 		assert.Contains(t, err.Error(), "total amount paid across all splits (25.00) does not match total expense amount (30.00)")
 		assert.Nil(t, createdExpense)
 		expenseRepo.AssertNotCalled(t, "CreateExpense")
-		userRepo.AssertExpectations(t)
+		userService.AssertExpectations(t)
 	}
 
 	// Test case 4: Percentage Split Success
@@ -176,11 +176,11 @@ func TestExpenseService_CreateExpense(t *testing.T) {
 				{UserEmail: "charlie@example.com", Percentage: 20, AmountPaid: 0.00},
 			},
 		}
-		userRepo.On("GetUsersByEmails", mock.AnythingOfType("[]string")).Return([]*repository.User{alice, bob, charlie}, nil).Once()
+		userService.On("GetUsersByEmails", mock.AnythingOfType("[]string")).Return([]*repository.User{alice, bob, charlie}, nil).Once()
 
-		expectedExpense := &repository.Expense{ID: 2, Description: req.Description, TotalAmount: req.TotalAmount, CreatedBy: alice.ID, CreatedAt: time.Now()}
+		expectedExpense := &repository.Expense{ID: 2, Description: req.Description, Tag: req.Tag, TotalAmount: req.TotalAmount, CreatedBy: alice.ID, CreatedAt: time.Now()}
 		expectedSplits := createExpectedSplits(req.TotalAmount, req.SplitMethod, usersMap, req)
-		expenseRepo.On("CreateExpense", mock.AnythingOfType("*repository.Expense"), expectedSplits).Return(expectedExpense, nil).Once()
+		expenseRepo.On("CreateExpense", mock.AnythingOfType("*repository.Expense"), expectedSplits, mock.Anything).Return(expectedExpense, nil).Once()
 
 		createdExpense, err := expenseService.CreateExpense(req)
 		assert.Nil(t, err)
@@ -189,7 +189,7 @@ func TestExpenseService_CreateExpense(t *testing.T) {
 		assert.Equal(t, expectedExpense.CreatedBy, createdExpense.CreatedBy)
 		assert.NotZero(t, createdExpense.CreatedAt)
 		expenseRepo.AssertExpectations(t)
-		userRepo.AssertExpectations(t)
+		userService.AssertExpectations(t)
 	}
 
 	// Test case 5: Manual Split Success
@@ -205,11 +205,11 @@ func TestExpenseService_CreateExpense(t *testing.T) {
 				{UserEmail: "charlie@example.com", AmountOwed: 20.00, AmountPaid: 0.00},
 			},
 		}
-		userRepo.On("GetUsersByEmails", mock.AnythingOfType("[]string")).Return([]*repository.User{alice, bob, charlie}, nil).Once()
+		userService.On("GetUsersByEmails", mock.AnythingOfType("[]string")).Return([]*repository.User{alice, bob, charlie}, nil).Once()
 
-		expectedExpense := &repository.Expense{ID: 3, Description: req.Description, TotalAmount: req.TotalAmount, CreatedBy: bob.ID, CreatedAt: time.Now()}
+		expectedExpense := &repository.Expense{ID: 3, Description: req.Description, Tag: req.Tag, TotalAmount: req.TotalAmount, CreatedBy: bob.ID, CreatedAt: time.Now()}
 		expectedSplits := createExpectedSplits(req.TotalAmount, req.SplitMethod, usersMap, req)
-		expenseRepo.On("CreateExpense", mock.AnythingOfType("*repository.Expense"), expectedSplits).Return(expectedExpense, nil).Once()
+		expenseRepo.On("CreateExpense", mock.AnythingOfType("*repository.Expense"), expectedSplits, mock.Anything).Return(expectedExpense, nil).Once()
 
 		createdExpense, err := expenseService.CreateExpense(req)
 		assert.Nil(t, err)
@@ -218,7 +218,7 @@ func TestExpenseService_CreateExpense(t *testing.T) {
 		assert.Equal(t, expectedExpense.CreatedBy, createdExpense.CreatedBy)
 		assert.NotZero(t, createdExpense.CreatedAt)
 		expenseRepo.AssertExpectations(t)
-		userRepo.AssertExpectations(t)
+		userService.AssertExpectations(t)
 	}
 
 	// Test case 6: Invalid percentage split total
@@ -233,14 +233,14 @@ func TestExpenseService_CreateExpense(t *testing.T) {
 				{UserEmail: "bob@example.com", Percentage: 30, AmountPaid: 0.00},
 			},
 		}
-		userRepo.On("GetUsersByEmails", mock.AnythingOfType("[]string")).Return([]*repository.User{alice, bob}, nil).Once()
+		userService.On("GetUsersByEmails", mock.AnythingOfType("[]string")).Return([]*repository.User{alice, bob}, nil).Once()
 
 		createdExpense, err := expenseService.CreateExpense(req)
 		assert.NotNil(t, err)
 		assert.Contains(t, err.Error(), "percentage split total must be 100%")
 		assert.Nil(t, createdExpense)
 		expenseRepo.AssertNotCalled(t, "CreateExpense")
-		userRepo.AssertExpectations(t)
+		userService.AssertExpectations(t)
 	}
 
 	// Test case 7: Invalid manual split total
@@ -255,13 +255,13 @@ func TestExpenseService_CreateExpense(t *testing.T) {
 				{UserEmail: "bob@example.com", AmountOwed: 30.00, AmountPaid: 0.00},
 			},
 		}
-		userRepo.On("GetUsersByEmails", mock.AnythingOfType("[]string")).Return([]*repository.User{alice, bob}, nil).Once()
+		userService.On("GetUsersByEmails", mock.AnythingOfType("[]string")).Return([]*repository.User{alice, bob}, nil).Once()
 
 		createdExpense, err := expenseService.CreateExpense(req)
 		assert.NotNil(t, err)
 		assert.Contains(t, err.Error(), "manual split amounts (90.00) must sum up to total amount (100.00)")
 		assert.Nil(t, createdExpense)
 		expenseRepo.AssertNotCalled(t, "CreateExpense")
-		userRepo.AssertExpectations(t)
+		userService.AssertExpectations(t)
 	}
 }
