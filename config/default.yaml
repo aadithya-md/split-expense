@@ -6,3 +6,6 @@ HTTP_SERVER:
   READ_TIMEOUT: 5s
   WRITE_TIMEOUT: 5s
   IDLE_TIMEOUT: 10s
+
+SQL_DB:
+  CONNECTION_STRING: "user:password@tcp(127.0.0.1:3306)/split_expense?parseTime=true"

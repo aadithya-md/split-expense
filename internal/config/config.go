@@ -7,17 +7,22 @@ import (
 	"github.com/spf13/viper"
 )
 
-type Config struct {
-	ServiceName string           `mapstructure:"SERVICE_NAME"`
-	HttpServer  HttpServerConfig `mapstructure:"HTTP_SERVER"`
-}
-
 type HttpServerConfig struct {
 	Address      string        `mapstructure:"ADDRESS"`
 	Port         string        `mapstructure:"PORT"`
 	ReadTimeout  time.Duration `mapstructure:"READ_TIMEOUT"`
 	WriteTimeout time.Duration `mapstructure:"WRITE_TIMEOUT"`
 	IdleTimeout  time.Duration `mapstructure:"IDLE_TIMEOUT"`
+}
+
+type SQLDbConfig struct {
+	ConnectionString string `mapstructure:"CONNECTION_STRING"`
+}
+
+type Config struct {
+	ServiceName string           `mapstructure:"SERVICE_NAME"`
+	HttpServer  HttpServerConfig `mapstructure:"HTTP_SERVER"`
+	SQLDb       SQLDbConfig      `mapstructure:"SQL_DB"`
 }
 
 func LoadConfig() (*Config, error) {
