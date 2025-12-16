@@ -161,28 +161,6 @@ func (s *expenseService) resolveUserEmailsToIDs(req *CreateExpenseRequest) error
 	return nil
 }
 
-func (s *expenseService) calculateBalanceUpdates(expense *repository.Expense, splits []repository.ExpenseSplit) []repository.BalanceUpdate {
-	balanceUpdates := make([]repository.BalanceUpdate, 0)
-	for _, split := range splits {
-		if expense.CreatedBy != split.UserID {
-			// Update balance for each user involved in the split relative to the CreatedBy user
-			// The net amount represents how much the split.UserID owes the expense.CreatedBy user
-			// A positive net amount means split.UserID owes CreatedBy
-			// A negative net amount means CreatedBy owes split.UserID
-			netAmountOwedToCreator := split.AmountOwed - split.AmountPaid
-
-			if netAmountOwedToCreator != 0 {
-				balanceUpdates = append(balanceUpdates, repository.BalanceUpdate{
-					User1ID: expense.CreatedBy,
-					User2ID: split.UserID,
-					Amount:  netAmountOwedToCreator,
-				})
-			}
-		}
-	}
-	return balanceUpdates
-}
-
 func (s *expenseService) CreateExpense(req CreateExpenseRequest) (*repository.Expense, error) {
 	if err := s.resolveUserEmailsToIDs(&req); err != nil {
 		return nil, err
@@ -211,7 +189,7 @@ func (s *expenseService) CreateExpense(req CreateExpenseRequest) (*repository.Ex
 	}
 
 	// Calculate balance updates
-	balanceUpdates := s.calculateBalanceUpdates(expense, splits)
+	balanceUpdates := CalculateBalanceUpdates(expense, splits)
 
 	createdExpense, err := s.expenseRepo.CreateExpense(expense, splits, balanceUpdates)
 	if err != nil {
